@@ -1,0 +1,19 @@
+node_modules/
+config/
+# Ignore credentials file
+src/testMySQLConnection /
+.env 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
