@@ -1,5 +1,9 @@
 
 // ---------------****************************---------working------------------
+
+
+
+
 // const chokidar = require('chokidar');
 // const path = require('path');
 // const fs = require('fs');
@@ -68,6 +72,12 @@
 // }
 
 // module.exports = watchFolder;
+
+
+
+
+
+
 // ---------------****************************---------working------------------
 
 
@@ -267,3 +277,135 @@ function watchFolder(uploadPath, donePath, auth) {
 }
 
 module.exports = watchFolder;
+
+
+// ***************************************-------------------------------*********************************************
+
+
+
+
+
+// const chokidar = require('chokidar');
+// const path = require('path');
+// const fs = require('fs');
+// const mysql = require('mysql');
+// const uploadVideo = require('./uploader');
+// require('dotenv').config();
+
+// // Set up MySQL connection
+// const dbConfig = {
+//     host: process.env.DB_HOST,
+//     user: process.env.DB_USER,
+//     password: process.env.DB_PASSWORD,
+//     database: process.env.DB_NAME,
+// };
+// const connection = mysql.createConnection(dbConfig);
+
+// // Debounce settings and tracking
+// const lastProcessed = {};
+// const DEBOUNCE_TIME = 3000; // 3 seconds debounce time
+// const currentlyUploading = {};
+
+// function watchFolder(uploadPath, donePath, auth) {
+//     const watcher = chokidar.watch(uploadPath, {
+//         persistent: true,
+//         ignoreInitial: true,
+//         followSymlinks: false,
+//         depth: 0,
+//         awaitWriteFinish: {
+//             stabilityThreshold: 2000,
+//             pollInterval: 100,
+//         },
+//     });
+
+//     watcher.on('add', async (filePath) => {
+//         const fileName = path.basename(filePath);
+//         const currentTime = Date.now();
+
+//         // Debounce logic
+//         if (
+//             lastProcessed[filePath] &&
+//             currentTime - lastProcessed[filePath] < DEBOUNCE_TIME
+//         ) {
+//             console.log(`Skipping file due to debounce: ${fileName}`);
+//             return;
+//         }
+
+//         if (currentlyUploading[filePath]) {
+//             console.log(`File is already uploading: ${fileName}`);
+//             return;
+//         }
+
+//         currentlyUploading[filePath] = true;
+//         lastProcessed[filePath] = currentTime;
+
+//         console.log(`Processing file: ${filePath}`);
+
+//         try {
+//             const tableName = fileName.startsWith('Class')
+//                 ? 'new_recording'
+//                 : fileName.startsWith('Session')
+//                 ? 'new_session'
+//                 : null;
+
+//             if (!tableName) {
+//                 console.warn(`Skipping unrecognized file type: ${fileName}`);
+//                 return;
+//             }
+
+//             const column = fileName.startsWith('Class') ? 'filename' : 'title';
+
+//             // Check if the file has already been processed
+//             const query = `SELECT COUNT(*) AS count FROM ${tableName} WHERE ${column} = ?`;
+//             connection.query(query, [fileName], async (err, results) => {
+//                 if (err) {
+//                     console.error('Error querying MySQL:', err);
+//                     return;
+//                 }
+
+//                 if (results[0].count > 0) {
+//                     console.log(`File already processed and saved to DB: ${fileName}`);
+//                     return;
+//                 }
+
+//                 // Upload video
+//                 const videoDetails = await uploadVideo(filePath, auth);
+//                 if (!videoDetails || !videoDetails.id) {
+//                     throw new Error('Video upload failed or returned invalid details.');
+//                 }
+
+//                 console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
+
+//                 // Move the file after processing
+//                 const doneFilePath = path.join(donePath, fileName);
+//                 fs.rename(filePath, doneFilePath, (renameErr) => {
+//                     if (renameErr) {
+//                         console.error(`Error moving file ${fileName}:`, renameErr);
+//                         return;
+//                     }
+//                     console.log(`Moved uploaded file to: ${doneFilePath}`);
+//                 });
+
+//                 // Insert into the appropriate table
+//                 const insertQuery = `INSERT INTO ${tableName} (${column}, video_id) VALUES (?, ?)`;
+//                 connection.query(insertQuery, [fileName, videoDetails.id], (insertErr) => {
+//                     if (insertErr) {
+//                         console.error('Error inserting into MySQL:', insertErr);
+//                     } else {
+//                         console.log(`File inserted into MySQL for table ${tableName}: ${fileName}`);
+//                     }
+//                 });
+//             });
+//         } catch (error) {
+//             console.error(`Error processing file ${filePath}:`, error);
+//         } finally {
+//             delete currentlyUploading[filePath];
+//         }
+//     });
+
+//     watcher.on('error', (error) => {
+//         console.error('Error watching folder:', error);
+//     });
+// }
+
+// module.exports = watchFolder;

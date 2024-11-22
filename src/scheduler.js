@@ -60,6 +60,7 @@ startSchedulers();
 //         donePath: path.join(__dirname, '../done/instance1'),
 //     },
 //     {
+
 //         uploadPath: path.join(__dirname, '../uploads/instance2'),
 //         donePath: path.join(__dirname, '../done/instance2'),
 //     },
