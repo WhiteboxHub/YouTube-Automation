@@ -4,6 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
 const mysql = require("mysql");
+const { executeTransaction } = require('./testMySQLConnection');
+
 require("dotenv").config();
 
 // MySQL database connection configuration
@@ -37,7 +39,7 @@ const subjectMapping = {
   SQL3: 5,
   SQL4: 5,
   SQL5: 5,
-  PythonProgramming: 10,
+  Python:10,
   HTML: 64,
   HTML5: 29,
   CSS: 6,
@@ -73,6 +75,7 @@ const subjectMapping = {
   GitHub: 66,
   RestApi: 68,
 };
+
 
 // async function uploadVideo(filePath, auth) {
 //     console.log('Starting upload process for:', filePath);
@@ -173,268 +176,395 @@ const subjectMapping = {
 //         return res.data;
 
 //     } catch (error) {
-//         console.error('Error uploading video to YouTube:', error);
+//         console.error('Error uploading video to additional db:', error);
 //         throw error;
 //     }
 // }
 
-// ******************----------------------------------------------***************************************
 
+// --------------------******************----------------------------------------
 async function uploadVideo(filePath, auth) {
   console.log("Starting upload process for:", filePath);
+
   try {
-    const youtube = google.youtube({ version: "v3", auth });
-    const fileSize = fs.statSync(filePath).size;
+      const youtube = google.youtube({ version: "v3", auth });
+      const fileSize = fs.statSync(filePath).size;
 
-    // Extract filename and identify the type
-    const fileName = path.basename(filePath);
-    const parts = fileName.split("_");
-    const prefix = parts[0]; // Either 'Class' or 'Session'
+      // Extract metadata from file name
+      const fileName = path.basename(filePath);
+      const parts = fileName.split("_");
+      const prefix = parts[0]; // 'Class' or 'Session'
 
-    if (prefix === "Class") {
-      // Existing Class logic
-      const batchId = parts[1]; // Assuming batch ID is after the first underscore
-      const subject = parts[4].split(".")[0]; // Assuming subject is the part before the file extension
-      const subjectId = subjectMapping[subject];
-
-      if (!subjectId) {
-        console.error("Invalid subject:", subject);
-        return;
-      }
-
-      const res = await youtube.videos.insert(
-        {
-          part: "snippet,status",
-          notifySubscribers: false,
-          requestBody: {
-            snippet: {
-              title: fileName,
-              description: fileName, // Use filename as description
-            },
-            status: {
-              privacyStatus: "unlisted",
-              quality: "high",
-            },
-          },
-          media: {
-            body: fs.createReadStream(filePath),
-          },
-        },
-        {
-          onUploadProgress: (evt) => {
-            const progress = (evt.bytesRead / fileSize) * 100;
-            console.log(`${Math.round(progress)}% complete`);
-          },
-        }
-      );
-
-      console.log("Upload complete:", res.data);
-      console.log("YouTube Video ID:", res.data.id);
-
-      // Insert data into new_recording table
-      const videoId = res.data.id;
-      const videoTitle = res.data.snippet.title;
-      const currentDate = new Date();
-      const batchname = `${currentDate.getFullYear()}-${String(
-        currentDate.getMonth() + 1
-      ).padStart(2, "0")}`;
-      const classDate = `${currentDate.getFullYear()}-${String(
-        currentDate.getMonth() + 1
-      ).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
-
-      const lastModDateTime = currentDate.toISOString().slice(0, 10);
-      const youtubeLink = `https://www.youtube.com/watch?v=${videoId}`;
-
-      connection.beginTransaction((err) => {
-        if (err) {
-          console.error("Error starting transaction:", err);
+      if (!prefix) {
+          console.error("Invalid file prefix:", fileName);
           return;
-        }
-
-        const query = `
-                INSERT INTO new_recording (
-                    batchname, description, type, classdate, link, videoid, subject, filename, lastmoddatetime, new_subject_id
-                ) VALUES (?, ?, 'class', ?, ?, ?, ?, ?, ?, ?)
-            `;
-
-        const values = [
-          batchname,
-          videoTitle,
-          classDate,
-          youtubeLink,
-          videoId,
-          subject,
-          fileName,
-          lastModDateTime,
-          subjectId,
-        ];
-
-        // connection.query(query, values, (err, results) => {
-        //     if (err) {
-        //         console.error('Error inserting video ID into MySQL:', err);
-        //     } else {
-        //         console.log('Video ID inserted into MySQL:', results);
-        //     }
-        // });
-
-        // connection.query(query, values, (err, results) => {
-        //     if (err) {
-        //         console.error('Error inserting video ID into MySQL:', err);
-        //         return;
-        //     }
-        //     const recordingId = results.insertId; // Ensure `id` is captured
-
-        // })
-
-        connection.query(query, values, (err, results) => {
-          if (err) {
-            console.error("Error inserting into new_recording:", err);
-
-            // Rollback if an error occurs
-            return connection.rollback(() => {
-              console.error("Transaction rolled back due to an error.");
-            });
-          }
-
-          console.log("Successfully inserted into new_recording:", results);
-          // Execute the additional query to insert into new_recording_batch
-          const additionalQuery = `
-    INSERT INTO whiteboxqa.new_recording_batch (recording_id, batch_id)
-    SELECT nr.id AS recording_id, b.batchid AS batch_id
-    FROM new_recording nr
-    JOIN batch b ON nr.batchname = b.batchname
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM new_recording_batch rb
-        WHERE rb.recording_id = nr.id
-        AND rb.batch_id = b.batchid
-    );
-`;
-
-          // Execute the additional query
-          //  connection.query(additionalQuery, (err, results) => {
-          //     if (err) {
-          //         console.error('Error executing additional query for new_recording_batch:', err);
-          //         return;
-          //     }
-          //     console.log('Successfully inserted into new_recording_batch:', results);
-          // });
-          // connection.query(additionalQuery, (err, results) => {
-          //     if (err) {
-          //         console.error('Error executing additional query:', err);
-          //     } else {
-          //         console.log('Additional query executed successfully:', results);
-          //     }
-          // });
-          // }connection.query(additionalQuery, (err, results) => {
-          if (err) {
-            console.error("Error executing additional query:", err);
-
-            // Rollback if an error occurs
-            return connection.rollback(() => {
-              console.error("Transaction rolled back due to an error.");
-            });
-          }
-
-          console.log(
-            "Successfully inserted into new_recording_batch:",
-            results
-          );
-
-          // Commit the transaction
-          connection.commit((err) => {
-            if (err) {
-              console.error("Error committing transaction:", err);
-
-              // Rollback if commit fails
-              return connection.rollback(() => {
-                console.error("Transaction rolled back due to commit error.");
-              });
-            }
-
-            console.log("Transaction committed successfully.");
-          });
-        });
-      });
-    } else if (prefix === "Session") {
-      // New Session logic
-      const sessionDate = parts[1]; // Extract date
-      const subjectId = parseInt(parts[2], 10); // Extract subject ID
-      const instructorName = parts[3]; // Extract instructor name
-      const sessionType = parts[4].split(".")[0]; // Extract session type
-
-      if (!subjectId || !sessionDate || !sessionType) {
-        console.error("Invalid session metadata in filename:", fileName);
-        return;
       }
 
-      const res = await youtube.videos.insert(
-        {
+      // Upload video to YouTube
+      const res = await youtube.videos.insert({
           part: "snippet,status",
           notifySubscribers: false,
           requestBody: {
-            snippet: {
-              title: fileName,
-              description: `Session by ${instructorName}`, // Customize description
-            },
-            status: {
-              privacyStatus: "unlisted",
-              quality: "high",
-            },
+              snippet: {
+                  title: fileName,
+                  description: fileName,
+              },
+              status: {
+                  privacyStatus: "unlisted",
+              },
           },
           media: {
-            body: fs.createReadStream(filePath),
+              body: fs.createReadStream(filePath),
           },
-        },
-        {
+      }, {
           onUploadProgress: (evt) => {
-            const progress = (evt.bytesRead / fileSize) * 100;
-            console.log(`${Math.round(progress)}% complete`);
+              const progress = (evt.bytesRead / fileSize) * 100;
+              console.log(`${Math.round(progress)}% complete`);
           },
-        }
-      );
+      });
 
-      console.log("Upload complete:", res.data);
-      console.log("YouTube Video ID:", res.data.id);
+      if (!res.data || !res.data.id) {
+          throw new Error("YouTube upload failed: No video ID returned");
+      }
 
-      // Insert data into new_session table
       const videoId = res.data.id;
-      const videoLink = `https://www.youtube.com/watch?v=${videoId}`;
+      const youtubeLink = `https://www.youtube.com/watch?v=${videoId}`;
       const currentDate = new Date();
       const lastModDateTime = currentDate.toISOString().slice(0, 10);
 
-      const query = `
-                INSERT INTO new_session (
-                    title, status, sessiondate, type, subject, recorded, uploaded, link, videoid,
-                    invitation, lastmoddatetime, subject_id
-                ) VALUES (?, 'Completed', ?, ?, ?, 'Y', 'Y', ?, ?, 'Y', ?, ?)
-            `;
+      if (prefix === "Class") {
+          // Process "Class" videos
+          const batchId = parts[1];
+          const subject = parts[4]?.split(".")[0];
+          const subjectId = subjectMapping[subject];
 
-      const values = [
-        fileName,
-        sessionDate,
-        sessionType,
-        instructorName,
-        videoLink,
-        videoId,
-        lastModDateTime,
-        subjectId,
-      ];
+          if (!subjectId) {
+              console.error("Invalid subject:", subject);
+              return;
+          }
 
-      connection.query(query, values, (err, results) => {
-        if (err) {
-          console.error("Error inserting session metadata into MySQL:", err);
-        } else {
-          console.log("Session metadata inserted into MySQL:", results);
-        }
-      });
-    } else {
-      console.error("Unknown file prefix:", prefix);
-    }
+          const batchname = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
+          const classDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+
+          // Insert into new_recording
+          const recordingQuery = `
+              INSERT INTO new_recording (batchname, description, type, classdate, link, videoid, subject, filename, lastmoddatetime, new_subject_id)
+              VALUES (?, ?, 'class', ?, ?, ?, ?, ?, ?, ?)
+          `;
+          const recordingValues = [batchname, fileName, classDate, youtubeLink, videoId, subject, fileName, lastModDateTime, subjectId];
+
+          // Insert into new_recording_batch
+          const batchQuery = `
+              INSERT INTO new_recording_batch (batchname, subject, lastmoddatetime)
+              VALUES (?, ?, ?)
+          `;
+          const batchValues = [batchname, subject, lastModDateTime];
+
+          // Execute inserts in a transaction
+          await executeTransaction(recordingQuery, recordingValues);
+          await executeTransaction(batchQuery, batchValues);
+
+          console.log("Class video uploaded and both records inserted successfully.");
+      } else if (prefix === "Session") {
+          // Process "Session" videos
+          const sessionDate = parts[1];
+          const subjectId = parseInt(parts[2], 10);
+          const instructorName = parts[3];
+          const sessionType = parts[4]?.split(".")[0];
+          if (!sessionDate || !subjectId || !sessionType) {
+              console.error("Invalid session metadata:", fileName);
+              return;
+          }
+
+          // Insert into new_session
+          const sessionQuery = `
+              INSERT INTO new_session (title, status, sessiondate, type, subject, recorded, uploaded, link, videoid, invitation, lastmoddatetime, subject_id)
+              VALUES (?, 'Completed', ?, ?, ?, 'Y', 'Y', ?, ?, 'Y', ?, ?)
+          `;
+          const sessionValues = [
+              fileName,
+              sessionDate,
+              sessionType,
+              instructorName,
+              youtubeLink,
+              videoId,
+              lastModDateTime,
+              subjectId,
+          ];
+
+          await executeTransaction(sessionQuery, sessionValues);
+
+          console.log("Session video uploaded and record inserted successfully.");
+      } else {
+          console.error("Unknown file prefix:", prefix);
+          return;
+      }
+
+      return { id: videoId, link: youtubeLink }; // Return videoDetails
   } catch (error) {
-    console.error("Error uploading video:", error);
-    throw error;
+      console.error("Error in uploadVideo:", error);
+      throw error;
   }
 }
+
+
+// ******************----------------------------------------------***************************************
+
+// async function uploadVideo(filePath, auth) {
+//   console.log("Starting upload process for:", filePath);
+//   try {
+//     const youtube = google.youtube({ version: "v3", auth });
+//     const fileSize = fs.statSync(filePath).size;
+
+//     // Extract filename and identify the type
+//     const fileName = path.basename(filePath);
+//     const parts = fileName.split("_");
+//     const prefix = parts[0]; // Either 'Class' or 'Session'
+
+//     if (prefix === "Class") {
+//       // Existing Class logic
+//       const batchId = parts[1]; // Assuming batch ID is after the first underscore
+//       const subject = parts[4].split(".")[0]; // Assuming subject is the part before the file extension
+//       const subjectId = subjectMapping[subject];
+
+//       if (!subjectId) {
+//         console.error("Invalid subject:", subject);
+//         return;
+//       }
+
+//       const res = await youtube.videos.insert(
+//         {
+//           part: "snippet,status",
+//           notifySubscribers: false,
+//           requestBody: {
+//             snippet: {
+//               title: fileName,
+//               description: fileName, // Use filename as description
+//             },
+//             status: {
+//               privacyStatus: "unlisted",
+//               quality: "high",
+//             },
+//           },
+//           media: {
+//             body: fs.createReadStream(filePath),
+//           },
+//         },
+//         {
+//           onUploadProgress: (evt) => {
+//             const progress = (evt.bytesRead / fileSize) * 100;
+//             console.log(`${Math.round(progress)}% complete`);
+//           },
+//         }
+//       );
+
+//       console.log("Upload complete:", res.data);
+//       console.log("YouTube Video ID:", res.data.id);
+
+//       // Insert data into new_recording table
+//       const videoId = res.data.id;
+//       const videoTitle = res.data.snippet.title;
+//       const currentDate = new Date();
+//       const batchname = `${currentDate.getFullYear()}-${String(
+//         currentDate.getMonth() + 1
+//       ).padStart(2, "0")}`;
+//       const classDate = `${currentDate.getFullYear()}-${String(
+//         currentDate.getMonth() + 1
+//       ).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+
+//       const lastModDateTime = currentDate.toISOString().slice(0, 10);
+//       const youtubeLink = `https://www.youtube.com/watch?v=${videoId}`;
+
+//       connection.beginTransaction((err) => {
+//         if (err) {
+//           console.error("Error starting transaction:", err);
+//           return;
+//         }
+
+//         const query = `
+//                 INSERT INTO new_recording (
+//                     batchname, description, type, classdate, link, videoid, subject, filename, lastmoddatetime, new_subject_id
+//                 ) VALUES (?, ?, 'class', ?, ?, ?, ?, ?, ?, ?)
+//             `;
+
+//         const values = [
+//           batchname,
+//           videoTitle,
+//           classDate,
+//           youtubeLink,
+//           videoId,
+//           subject,
+//           fileName,
+//           lastModDateTime,
+//           subjectId,
+//         ];
+
+//         // connection.query(query, values, (err, results) => {
+//         //     if (err) {
+//         //         console.error('Error inserting video ID into MySQL:', err);
+//         //     } else {
+//         //         console.log('Video ID inserted into MySQL:', results);
+//         //     }
+//         // });
+
+//         // connection.query(query, values, (err, results) => {
+//         //     if (err) {
+//         //         console.error('Error inserting video ID into MySQL:', err);
+//         //         return;
+//         //     }
+//         //     const recordingId = results.insertId; // Ensure `id` is captured
+
+//         // })
+
+//         connection.query(query, values, (err, results) => {
+//           if (err) {
+//             console.error("Error inserting into new_recording:", err);
+
+//             // Rollback if an error occurs
+//             return connection.rollback(() => {
+//               console.error("Transaction rolled back due to an error.");
+//             });
+//           }
+
+//           console.log("Successfully inserted into new_recording:", results);
+//           // Execute the additional query to insert into new_recording_batch
+//           const additionalQuery = `
+//     INSERT INTO whiteboxqa.new_recording_batch (recording_id, batch_id)
+//     SELECT nr.id AS recording_id, b.batchid AS batch_id
+//     FROM new_recording nr
+//     JOIN batch b ON nr.batchname = b.batchname
+//     WHERE NOT EXISTS (
+//         SELECT 1
+//         FROM new_recording_batch rb
+//         WHERE rb.recording_id = nr.id
+//         AND rb.batch_id = b.batchid
+//     );
+// `;
+
+//           // Execute the additional query
+//           //  connection.query(additionalQuery, (err, results) => {
+//           //     if (err) {
+//           //         console.error('Error executing additional query for new_recording_batch:', err);
+//           //         return;
+//           //     }
+//           //     console.log('Successfully inserted into new_recording_batch:', results);
+//           // });
+//           // connection.query(additionalQuery, (err, results) => {
+//           //     if (err) {
+//           //         console.error('Error executing additional query:', err);
+//           //     } else {
+//           //         console.log('Additional query executed successfully:', results);
+//           //     }
+//           // });
+//           // }connection.query(additionalQuery, (err, results) => {
+//           if (err) {
+//             console.error("Error executing additional query:", err);
+
+//             // Rollback if an error occurs
+//             return connection.rollback(() => {
+//               console.error("Transaction rolled back due to an error.");
+//             });
+//           }
+
+//           console.log(
+//             "Successfully inserted into new_recording_batch:",
+//             results
+//           );
+
+//           // Commit the transaction
+//           connection.commit((err) => {
+//             if (err) {
+//               console.error("Error committing transaction:", err);
+
+//               // Rollback if commit fails
+//               return connection.rollback(() => {
+//                 console.error("Transaction rolled back due to commit error.");
+//               });
+//             }
+
+//             console.log("Transaction committed successfully.");
+//           });
+//         });
+//       });
+//     } else if (prefix === "Session") {
+//       // New Session logic
+//       const sessionDate = parts[1]; // Extract date
+//       const subjectId = parseInt(parts[2], 10); // Extract subject ID
+//       const instructorName = parts[3]; // Extract instructor name
+//       const sessionType = parts[4].split(".")[0]; // Extract session type
+
+//       if (!subjectId || !sessionDate || !sessionType) {
+//         console.error("Invalid session metadata in filename:", fileName);
+//         return;
+//       }
+
+//       const res = await youtube.videos.insert(
+//         {
+//           part: "snippet,status",
+//           notifySubscribers: false,
+//           requestBody: {
+//             snippet: {
+//               title: fileName,
+//               description: `Session by ${instructorName}`, // Customize description
+//             },
+//             status: {
+//               privacyStatus: "unlisted",
+//               quality: "high",
+//             },
+//           },
+//           media: {
+//             body: fs.createReadStream(filePath),
+//           },
+//         },
+//         {
+//           onUploadProgress: (evt) => {
+//             const progress = (evt.bytesRead / fileSize) * 100;
+//             console.log(`${Math.round(progress)}% complete`);
+//           },
+//         }
+//       );
+
+//       console.log("Upload complete:", res.data);
+//       console.log("YouTube Video ID:", res.data.id);
+
+//       // Insert data into new_session table
+//       const videoId = res.data.id;
+//       const videoLink = `https://www.youtube.com/watch?v=${videoId}`;
+//       const currentDate = new Date();
+//       const lastModDateTime = currentDate.toISOString().slice(0, 10);
+
+//       const query = `
+//                 INSERT INTO new_session (
+//                     title, status, sessiondate, type, subject, recorded, uploaded, link, videoid,
+//                     invitation, lastmoddatetime, subject_id
+//                 ) VALUES (?, 'Completed', ?, ?, ?, 'Y', 'Y', ?, ?, 'Y', ?, ?)
+//             `;
+
+//       const values = [
+//         fileName,
+//         sessionDate,
+//         sessionType,
+//         instructorName,
+//         videoLink,
+//         videoId,
+//         lastModDateTime,
+//         subjectId,
+//       ];
+
+//       connection.query(query, values, (err, results) => {
+//         if (err) {
+//           console.error("Error inserting session metadata into MySQL:", err);
+//         } else {
+//           console.log("Session metadata inserted into MySQL:", results);
+//         }
+//       });
+//     } else {
+//       console.error("Unknown file prefix:", prefix);
+//     }
+//   } catch (error) {
+//     console.error("Error uploading video:", error);
+//     throw error;
+//   }
+// }
 
 module.exports = uploadVideo;

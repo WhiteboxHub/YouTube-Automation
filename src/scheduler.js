@@ -1,11 +1,12 @@
 
 // const cron = require('node-cron');
 const path = require('path');
-const watchFolder = require('./fileWatcher');
+const watchFolder= require('./fileWatcher');
 const authenticate = require('./auth');
 
 const instanceConfigs = [
     {
+        
         uploadPath: path.join(__dirname, '../uploads/instance1'),
         donePath: path.join(__dirname, '../done/instance1'),
     },
