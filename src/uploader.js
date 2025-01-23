@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
-const mysql = require("mysql");
+const mysql = require("mysql2");
 const { executeTransaction } = require("./testMySQLConnection");
 
 require("dotenv").config();
