@@ -31,14 +31,16 @@ const mysql = require('mysql2/promise');
 
 // Create a database pool
 const pool = mysql.createPool({
-    host: '35.232.56.51',
-    user: 'whiteboxqa',
-    password: 'Innovapath1',
-    database: 'whiteboxqa',
+    host: '35.193.16.142',
+    user: 'wbl-db',
+    password: 'WblTr@!n!ng0143',
+    database: 'whitebox_learning',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
 });
+
+
 
 // Function to execute a query within a transaction
 async function executeTransaction(query, values) {

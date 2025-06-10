@@ -42,7 +42,7 @@ function watchFolder(uploadPath, donePath, auth) {
 
             if (fileName.startsWith('Class')) {
                 // Existing logic for Class files
-                const query = 'SELECT COUNT(*) AS count FROM new_recording WHERE filename = ?';
+                const query = 'SELECT COUNT(*) AS count FROM recording WHERE filename = ?';
                 connection.query(query, [fileName], async (err, results) => {
                     if (err) {
                         console.error('Error querying MySQL:', err);
@@ -63,7 +63,7 @@ function watchFolder(uploadPath, donePath, auth) {
                 });
             } else if (fileName.startsWith('Session')) {
                 // New logic for Session files
-                const query = 'SELECT COUNT(*) AS count FROM new_session WHERE title = ?';
+                const query = 'SELECT COUNT(*) AS count FROM session WHERE title = ?';
                 connection.query(query, [fileName], async (err, results) => {
                     if (err) {
                         console.error('Error querying MySQL:', err);

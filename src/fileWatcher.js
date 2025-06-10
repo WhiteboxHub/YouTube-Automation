@@ -41,7 +41,7 @@ function watchFolder(uploadPath, donePath, auth) {
             const fileName = path.basename(filePath);
 
             // Check if video has already been uploaded
-            const query = 'SELECT COUNT(*) AS count FROM new_recording WHERE filename = ?';
+            const query = 'SELECT COUNT(*) AS count FROM recording WHERE filename = ?';
             connection.query(query, [fileName], async (err, results) => {
                 if (err) {
                     console.error('Error querying MySQL:', err);
@@ -117,7 +117,7 @@ module.exports = watchFolder;
 
 //             if (fileName.startsWith('Class')) {
 //                 // Existing logic for Class files
-//                 const query = 'SELECT COUNT(*) AS count FROM new_recording WHERE filename = ?';
+//                 const query = 'SELECT COUNT(*) AS count FROM recording WHERE filename = ?';
 //                 connection.query(query, [fileName], async (err, results) => {
 //                     if (err) {
 //                         console.error('Error querying MySQL:', err);
