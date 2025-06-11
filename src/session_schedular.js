@@ -1,7 +1,7 @@
 
 // const cron = require('node-cron');
 const path = require('path');
-const watchFolder= require('./fileWatcher');
+const watchFolder= require('./session_fileWatcher');
 const authenticate = require('./auth');
 
 const instanceConfigs = [
@@ -34,9 +34,9 @@ const instanceConfigs = [
 
 async function startSchedulers() {
     try {
-        const auth = await authenticate();
-        console.log('-------------------------------------------------------------------------------------------classes scheduler is started----------------------------------------')
         
+        const auth = await authenticate();
+        console.log('-----------------------------------session_scheduler is started----------------------------------------')
         instanceConfigs.forEach((config) => {
             // cron.schedule('* * * * *', () => {
                 console.log(`Watching folder: ${config.uploadPath}`);

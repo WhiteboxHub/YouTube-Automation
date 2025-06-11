@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
-const mysql = require("mysql");
+const mysql = require("mysql2");
 const { executeTransaction } = require("./testMySQLConnection");
 
 require("dotenv").config();
@@ -34,6 +34,8 @@ const subjectMapping = {
   UNIX: 12,
   "HTTP Webservices": 1,
   RestAssured: 23,
+  NOSQL:5,
+  MYSQL:5,
   SQL1: 5,
   SQL2: 5,
   SQL3: 5,
@@ -72,8 +74,12 @@ const subjectMapping = {
   "Gen AI": 52,
   "ComputerVisionTechnigues(CVT)": 53,
   Docker: 67,
-  GitHub: 66,
+  "Git and GitHub": 66,
   RestApi: 68,
+  Pytorch:52,
+  ML:54,
+  "Scikit Learn":56,
+  Kubernetes:52
 };
 
 // ---------------------------------************Class Recordings*************----------------------------------
@@ -133,7 +139,7 @@ async function uploadVideo(filePath, auth) {
         const youtubeLink = `https://www.youtube.com/watch?v=${videoId}`;
 
         const query = `
-            INSERT INTO new_recording (
+            INSERT INTO recording (
                 batchname, description, type, classdate, link, videoid, subject, filename, lastmoddatetime, new_subject_id
             ) VALUES (?, ?, 'class', ?, ?, ?, ?, ?, ?, ?)
         `;
@@ -147,15 +153,15 @@ async function uploadVideo(filePath, auth) {
                 console.log('Video ID inserted into MySQL:', results);
             // }
 
-    // Execute the additional query to insert into new_recording_batch
+    // Execute the additional query to insert into recording_batch
     const additionalQuery = `
-    INSERT INTO whiteboxqa.new_recording_batch (recording_id, batch_id)
+    INSERT INTO wbl_newDB.recording_batch (recording_id, batch_id)
     SELECT nr.id AS recording_id, b.batchid AS batch_id
-    FROM new_recording nr
+    FROM recording nr
     JOIN batch b ON nr.batchname = b.batchname
     WHERE NOT EXISTS (
         SELECT 1
-        FROM new_recording_batch rb
+        FROM recording_batch rb
         WHERE rb.recording_id = nr.id
         AND rb.batch_id = b.batchid
     );
