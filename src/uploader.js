@@ -155,7 +155,7 @@ async function uploadVideo(filePath, auth) {
 
     // Execute the additional query to insert into recording_batch
     const additionalQuery = `
-    INSERT INTO whitebox_learning.recording_batch (recording_id, batch_id)
+    INSERT INTO wbl_newDB.recording_batch (recording_id, batch_id)
     SELECT nr.id AS recording_id, b.batchid AS batch_id
     FROM recording nr
     JOIN batch b ON nr.batchname = b.batchname

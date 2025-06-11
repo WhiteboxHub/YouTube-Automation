@@ -31,10 +31,10 @@ const mysql = require('mysql2/promise');
 
 // Create a database pool
 const pool = mysql.createPool({
-    host: '35.193.16.142',
-    user: 'wbl-db',
-    password: 'WblTr@!n!ng0143',
-    database: 'whitebox_learning',
+    host: '35.230.80.28',
+    user: 'wbl-new-db',
+    password: 'Wbltr@!n!ng0143',
+    database: 'wbl_newDB',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,

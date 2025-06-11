@@ -1,8 +1,8 @@
 node_modules/
 config/
 # Ignore credentials file
-src/testMySQLConnection /
-src/testMySQLConnection.js/
+# src/testMySQLConnection /
+src/testMySQLConnection.js
 .env 
 *.wmv
 
