@@ -35,11 +35,13 @@ npm install
 ### 3. Configure Environment Variables
 Create a `.env` file in the root directory:
 ```env
-DB_HOST=your_database_host
-DB_USER=your_database_user
-DB_PASSWORD=your_database_password
-DB_NAME=your_database_name
+# WhiteBox Learning API Configuration
+WBL_API_BASE_URL=https://whitebox-learning.com/api
+WBL_EMAIL=your-email@example.com
+WBL_PASSWORD=your-password
 ```
+
+**Note**: The application now uses the WhiteBox Learning API exclusively for all data operations. No direct database access is required.
 
 ### 4. Configure YouTube API Credentials
 
@@ -75,7 +77,6 @@ node src/scheduler.js
 To start the automation process for session videos:
 ```bash
 node src/session_schedular.js
-```
 
 ---
 
@@ -83,11 +84,13 @@ node src/session_schedular.js
 
 - ✅ Automatic video upload to primary YouTube channel
 - ✅ Automatic backup upload to secondary YouTube channel
-- ✅ Database integration with MySQL
+- ✅ **API-based integration** with WhiteBox Learning platform
+- ✅ **JWT authentication** for secure API access
 - ✅ Automatic video metadata extraction from filename
 - ✅ File watching for automatic processing
-- ✅ Backup URL storage in database
+- ✅ Backup URL storage via API
 - ✅ Support for both Class and Session recordings
+- ✅ Duplicate detection via API
 
 ---
 

@@ -52,7 +52,8 @@ done/*
 *.test.js
 *.spec.js
 coverage/
-
+*.testApiClient.js
+*.testApiAuth.js
 # Build files
 dist/
 build/

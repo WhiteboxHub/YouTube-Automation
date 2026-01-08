@@ -1,23 +1,9 @@
 const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
-const mysql = require("mysql2");
-const { uploadToBackup } = require("./backup_uploader"); 
+const { uploadToBackup } = require("./backup_uploader");
+const { createRecording, updateRecording, getBatches, createRecordingBatch, createJobActivityLog } = require("./apiClient");
 require("dotenv").config();
-
-const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-};
-
-const connection = mysql.createConnection(dbConfig);
-
-connection.connect((err) => {
-  if (err) return console.error("Error connecting to MySQL:", err);
-  console.log("Connected to MySQL");
-});
 
 const subjectMapping = {
   SDLC: 65,
@@ -143,55 +129,103 @@ async function uploadVideo(filePath, auth) {
 
     console.log("Upload complete. Video ID:", res.data.id);
 
-    // Insert into DB
+    // Prepare data
     const lastModDateTime = new Date().toISOString().slice(0, 10);
     const youtubeLink = `https://www.youtube.com/watch?v=${res.data.id}`;
 
-    const query = `
-      INSERT INTO recording (
-        description, type, classdate, link, videoid, subject, filename, lastmoddatetime, new_subject_id
-      ) VALUES (?, 'class', ?, ?, ?, ?, ?, ?, ?)
-    `;
-    const values = [
-      description,
-      classDate,
-      youtubeLink,
-      res.data.id,
-      subject,
-      cleanFileName,
-      lastModDateTime,
-      subjectId,
-    ];
-
-    connection.query(query, values, (err, results) => {
-      if (err) return console.error("Error inserting into recording:", err);
-
-      console.log("Inserted into recording:", results);
-
-      // Insert into recording_batch
-      const batchQuery = `
-        INSERT INTO recording_batch (recording_id, batch_id)
-        SELECT r.id, b.batchid
-        FROM recording r
-        JOIN batch b ON b.batchname LIKE ?
-        WHERE r.videoid = ?
-      `;
-      connection.query(batchQuery, [`%${batchSuffix}%`, res.data.id], (err2, results2) => {
-        if (err2) return console.error("Error inserting into recording_batch:", err2);
-        console.log("Inserted into recording_batch:", results2);
-      });
-    });
-
-    // Backup upload
+    // Upload to BACKUP CHANNEL first (before creating DB record)
+    let backupUrl = null;
     try {
-      const backupUrl = await uploadToBackup(filePath,youtubeTitle, description, "class");
-      const updateQuery = `UPDATE recording SET backup_url = ? WHERE videoid = ?`;
-      connection.query(updateQuery, [backupUrl, res.data.id], (err, results) => {
-        if (err) return console.error("Error updating backup_url:", err);
-        console.log("Backup URL updated:", backupUrl);
-      });
+      console.log("[BACKUP] Starting backup upload...");
+      backupUrl = await uploadToBackup(filePath, youtubeTitle, description, "class");
+      console.log("[BACKUP] Backup upload successful:", backupUrl);
     } catch (backupError) {
-      console.error("Backup upload failed:", backupError.message);
+      console.error("[BACKUP] Backup upload failed (continuing without backup):", backupError.message);
+    }
+
+    // Create recording with BOTH URLs at once
+    const recordingData = {
+      description: description,
+      type: "class",
+      classdate: classDate,
+      link: youtubeLink,
+      videoid: res.data.id,
+      backup_url: backupUrl,  // Include backup URL from the start
+      subject: subject,
+      filename: cleanFileName,
+      lastmoddatetime: lastModDateTime,
+      new_subject_id: subjectId,
+    };
+
+    let createdRecording;
+    try {
+      console.log("[RECORDING] Creating recording with both URLs...");
+      createdRecording = await createRecording(recordingData);
+      console.log("[RECORDING] Recording created successfully with backup URL");
+    } catch (apiError) {
+      console.error("[RECORDING] Failed to create recording via API:", apiError.message);
+      throw apiError;
+    }
+
+    // Get batch by name (from batchSuffix) and create recording-batch mapping
+    try {
+      console.log(`[MAPPING] Looking up batch with name: ${batchSuffix}`);
+      const batches = await getBatches(batchSuffix);
+
+      console.log(`[MAPPING] API returned ${batches?.length || 0} batches`);
+      if (batches && batches.length > 0) {
+        console.log(`[MAPPING] First batch:`, JSON.stringify(batches[0], null, 2));
+      }
+
+      if (batches && batches.length > 0) {
+        const batch = batches[0];
+
+        // Validate batch has batchid
+        if (!batch.batchid) {
+          console.error(`[MAPPING] ERROR: Batch found but has no 'batchid' field!`);
+          console.error(`[MAPPING] Batch object:`, batch);
+          console.warn("[MAPPING] Recording created but not mapped - batch missing batchid");
+        } else {
+          console.log(`[MAPPING] Found batch ID: ${batch.batchid}`);
+
+          // Create recording-batch mapping
+          const mappingData = {
+            recording_id: createdRecording.id,
+            batch_id: batch.batchid
+          };
+
+          console.log(`[MAPPING] Creating mapping:`, JSON.stringify(mappingData, null, 2));
+          const recordingBatch = await createRecordingBatch(mappingData);
+          console.log("[MAPPING] Recording mapped to batch successfully:", recordingBatch);
+        }
+      } else {
+        console.warn(`[MAPPING] No batch found with name: ${batchSuffix}`);
+        console.warn("[MAPPING] Recording created but not mapped to any batch");
+      }
+    } catch (mappingError) {
+      console.error("[MAPPING] Failed to create recording-batch mapping:", mappingError.message);
+      console.error("[MAPPING] Recording was created but mapping failed");
+    }
+
+    // Log job activity
+    try {
+      const employeeId = process.env.EMPLOYEE_ID ? parseInt(process.env.EMPLOYEE_ID, 10) : null;
+      const currentDate = new Date().toISOString().slice(0, 10);
+
+      const logData = {
+        job_id: 123, // Bot Class Recording Uploader
+        employee_id: employeeId,
+        activity_date: currentDate,
+        activity_count: 1,
+        notes: fileName
+      };
+
+      console.log("[JOB_LOG] Creating job activity log...");
+      await createJobActivityLog(logData);
+      console.log("[JOB_LOG] Job activity logged successfully");
+    } catch (logError) {
+      console.error("[JOB_LOG] Failed to log job activity:", logError.message);
+      console.error("[JOB_LOG] Upload was successful but logging failed (non-critical)");
     }
 
     return res.data;
@@ -202,3 +236,4 @@ async function uploadVideo(filePath, auth) {
 }
 
 module.exports = uploadVideo;
+

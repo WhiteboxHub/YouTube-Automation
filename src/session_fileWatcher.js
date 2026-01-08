@@ -9,18 +9,9 @@
 const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
-const mysql = require('mysql');
 const uploadVideo = require('./session_uploader');
+const { getRecordings, getSessions } = require('./apiClient');
 require('dotenv').config();
-
-// Set up MySQL connection
-const dbConfig = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-};
-const connection = mysql.createConnection(dbConfig);
 
 function watchFolder(uploadPath, donePath, auth) {
     const watcher = chokidar.watch(uploadPath, {
@@ -41,47 +32,47 @@ function watchFolder(uploadPath, donePath, auth) {
             const fileName = path.basename(filePath);
 
             if (fileName.startsWith('Class')) {
-                // Existing logic for Class files
-                const query = 'SELECT COUNT(*) AS count FROM recording WHERE filename = ?';
-                connection.query(query, [fileName], async (err, results) => {
-                    if (err) {
-                        console.error('Error querying MySQL:', err);
-                        return;
-                    }
+                // Check for existing Class recording via API
+                try {
+                    const recordings = await getRecordings(fileName);
+                    const existingRecording = recordings.find(r => r.filename === fileName);
 
-                    if (results[0].count > 0) {
+                    if (existingRecording) {
                         console.log(`Video already uploaded and saved to DB: ${fileName}`);
                         return; // Exit if video already exists
                     }
+                } catch (apiError) {
+                    console.error('Error checking for existing recording via API:', apiError.message);
+                    // Continue with upload even if API check fails
+                }
 
-                    const videoDetails = await uploadVideo(filePath, auth);
-                    console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
+                const videoDetails = await uploadVideo(filePath, auth);
+                console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
 
-                    const doneFilePath = path.join(donePath, fileName);
-                    fs.renameSync(filePath, doneFilePath);
-                    console.log(`Moved uploaded file to: ${doneFilePath}`);
-                });
+                const doneFilePath = path.join(donePath, fileName);
+                fs.renameSync(filePath, doneFilePath);
+                console.log(`Moved uploaded file to: ${doneFilePath}`);
             } else if (fileName.startsWith('Session')) {
-                // New logic for Session files
-                const query = 'SELECT COUNT(*) AS count FROM session WHERE title = ?';
-                connection.query(query, [fileName], async (err, results) => {
-                    if (err) {
-                        console.error('Error querying MySQL:', err);
-                        return;
-                    }
+                // Check for existing Session via API
+                try {
+                    const sessions = await getSessions(fileName);
+                    const existingSession = sessions.find(s => s.title === fileName);
 
-                    if (results[0].count > 0) {
+                    if (existingSession) {
                         console.log(`Session already uploaded and saved to DB: ${fileName}`);
                         return; // Exit if session already exists
                     }
+                } catch (apiError) {
+                    console.error('Error checking for existing session via API:', apiError.message);
+                    // Continue with upload even if API check fails
+                }
 
-                    const videoDetails = await uploadVideo(filePath, auth);
-                    console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
+                const videoDetails = await uploadVideo(filePath, auth);
+                console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
 
-                    const doneFilePath = path.join(donePath, fileName);
-                    fs.renameSync(filePath, doneFilePath);
-                    console.log(`Moved uploaded file to: ${doneFilePath}`);
-                });
+                const doneFilePath = path.join(donePath, fileName);
+                fs.renameSync(filePath, doneFilePath);
+                console.log(`Moved uploaded file to: ${doneFilePath}`);
             }
         } catch (error) {
             console.error(`Error processing file ${filePath}:`, error);
@@ -91,7 +82,7 @@ function watchFolder(uploadPath, donePath, auth) {
     watcher.on('error', (error) => {
         console.error('Error watching folder:', error);
     });
-    
+
 }
 
 module.exports = watchFolder;

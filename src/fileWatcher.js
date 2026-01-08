@@ -7,19 +7,9 @@
 const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
-const mysql = require('mysql2');
 const uploadVideo = require('./uploader');
+const { getRecordings } = require('./apiClient');
 require('dotenv').config();
-
-
-// Set up MySQL connection
-const dbConfig = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-};
-const connection = mysql.createConnection(dbConfig);
 
 
 function watchFolder(uploadPath, donePath, auth) {
@@ -40,28 +30,28 @@ function watchFolder(uploadPath, donePath, auth) {
         try {
             const fileName = path.basename(filePath);
 
-            // Check if video has already been uploaded
-            const query = 'SELECT COUNT(*) AS count FROM recording WHERE filename = ?';
-            connection.query(query, [fileName], async (err, results) => {
-                if (err) {
-                    console.error('Error querying MySQL:', err);
-                    return;
-                }
-
-                if (results[0].count > 0) {
+            // Check if video has already been uploaded via API
+            try {
+                const recordings = await getRecordings(fileName);
+                const existingRecording = recordings.find(r => r.filename === fileName);
+                
+                if (existingRecording) {
                     console.log(`Video already uploaded and saved to DB: ${fileName}`);
                     return; // Exit if video already exists
                 }
+            } catch (apiError) {
+                console.error('Error checking for existing recording via API:', apiError.message);
+                // Continue with upload even if API check fails
+            }
 
-                // Proceed with video upload if not already in DB
-                const videoDetails = await uploadVideo(filePath, auth);
-                console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
+            // Proceed with video upload if not already in DB
+            const videoDetails = await uploadVideo(filePath, auth);
+            console.log(`Video uploaded successfully. YouTube Video ID: ${videoDetails.id}`);
 
-                // Move file to donePath after upload
-                const doneFilePath = path.join(donePath, fileName);
-                fs.renameSync(filePath, doneFilePath);
-                console.log(`Moved uploaded file to: ${doneFilePath}`);
-            });
+            // Move file to donePath after upload
+            const doneFilePath = path.join(donePath, fileName);
+            fs.renameSync(filePath, doneFilePath);
+            console.log(`Moved uploaded file to: ${doneFilePath}`);
         } catch (error) {
             console.error(`Error processing file ${filePath}:`, error);
         }
