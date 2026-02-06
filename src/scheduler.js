@@ -1,19 +1,13 @@
-
-// const cron = require('node-cron');
 const path = require('path');
-const watchFolder= require('./fileWatcher');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+const watchFolder = require('./fileWatcher');
 const authenticate = require('./auth');
 
 const instanceConfigs = [
     {
-        
-        uploadPath: path.join(__dirname, '../uploads/instance1'),
-        donePath: path.join(__dirname, '../done/instance1'),
-    },
-    {
-        uploadPath: path.join(__dirname, '../uploads/instance2'),
-        donePath: path.join(__dirname, '../done/instance2'),
-    },
+        uploadPath: process.env.CLASS_UPLOAD_PATH || path.join(__dirname, '../uploads/instance1'),
+        donePath: process.env.CLASS_DONE_PATH || path.join(__dirname, '../done/instance1'),
+    }
 ];
 
 // async function startSchedulers() {
@@ -36,11 +30,11 @@ async function startSchedulers() {
     try {
         const auth = await authenticate();
         console.log('-------------------------------------------------------------------------------------------classes scheduler is started----------------------------------------')
-        
+
         instanceConfigs.forEach((config) => {
             // cron.schedule('* * * * *', () => {
-                console.log(`Watching folder: ${config.uploadPath}`);
-                watchFolder(config.uploadPath, config.donePath, auth);
+            console.log(`Watching folder: ${config.uploadPath}`);
+            watchFolder(config.uploadPath, config.donePath, auth);
             // });
         });
     } catch (error) {

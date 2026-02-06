@@ -1,6 +1,11 @@
+const path = require('path');
 const axios = require('axios');
 const qs = require('qs');
-require('dotenv').config();
+const dotenvResult = require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
+if (dotenvResult.error) {
+    console.warn('[AUTH] Warning: .env file not found or could not be loaded:', dotenvResult.error.message);
+}
 
 // Configuration
 const API_BASE_URL = process.env.WBL_API_BASE_URL || 'https://whitebox-learning.com/api';
