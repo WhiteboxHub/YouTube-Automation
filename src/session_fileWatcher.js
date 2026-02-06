@@ -11,7 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const uploadVideo = require('./session_uploader');
 const { getRecordings, getSessions } = require('./apiClient');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 function watchFolder(uploadPath, donePath, auth) {
     const watcher = chokidar.watch(uploadPath, {

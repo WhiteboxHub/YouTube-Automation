@@ -38,6 +38,7 @@ const subjectMapping = {
     "Software Architecture": 2,
     NumPy: 54,
     Pandas: 55,
+    Seaborn: 84,
     Matplotlib: 63,
     EssentialMathForML: 56,
     SuperivisedLearningAlgorithms: 57,

@@ -1,6 +1,7 @@
+const path = require('path');
 const axios = require('axios');
 const { getAuthToken } = require('./apiAuth');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Configuration
 const API_BASE_URL = process.env.WBL_API_BASE_URL || 'https://whitebox-learning.com/api';

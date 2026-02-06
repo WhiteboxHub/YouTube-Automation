@@ -30,6 +30,7 @@ cd project-youtube-automation
 ### 2. Install Dependencies
 ```bash
 npm install
+npm install dotenv
 ```
 
 ### 3. Configure Environment Variables
@@ -79,7 +80,8 @@ To start the automation process for session videos:
 node src/session_schedular.js
 
 ---
-
+created a Unified file that sees the folder for both class and session 
+node src/main.js
 ## **Features**
 
 - ✅ Automatic video upload to primary YouTube channel
