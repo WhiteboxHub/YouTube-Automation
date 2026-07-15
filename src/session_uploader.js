@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
 const { uploadToBackup } = require("./backup_uploader");
-const { createRecording, createSession, updateRecording, updateSession, getRecordings, getSessions, getBatches, createRecordingBatch, createJobActivityLog } = require("./apiClient");
+const { createRecording, createSession, updateRecording, updateSession, getRecordings, getSessions, getBatches, createRecordingBatch, createJobActivityLog, searchCandidates } = require("./apiClient");
 
 require("dotenv").config();
 
@@ -244,15 +244,28 @@ async function uploadVideo(filePath, auth) {
             // Process "Session" videos
             const sessionDate = parts[1];
             const subjectId = parseInt(parts[2], 10);
-            const instructorName = parts[3];
-            let sessionType = parts[4]?.split(".")[0];
+            
+            const lowerTitle = fileName.toLowerCase();
+            const isCandidateSimulation = lowerTitle.includes("candidate interview simulation");
+
+            let instructorName;
+            let sessionType;
+            let candidateName;
+
+            if (isCandidateSimulation) {
+                // Expected pattern: Session_[Date]_[SubjectID]_candidate interview simulation_[SessionType]_[InstructorName]_[CandidateName]
+                sessionType = parts[4];
+                instructorName = parts[5];
+                candidateName = parts[6] ? path.basename(parts[6], path.extname(parts[6])) : null;
+            } else {
+                instructorName = parts[3];
+                sessionType = parts[4]?.split(".")[0];
+            }
 
             if (!sessionDate || !subjectId || !sessionType) {
                 console.error("[PRIMARY] Invalid session metadata:", fileName);
                 return;
             }
-
-            const lowerTitle = fileName.toLowerCase();
 
             if (lowerTitle.includes("group")) {
                 sessionType = "Group Mock";
@@ -266,8 +279,26 @@ async function uploadVideo(filePath, auth) {
                 sessionType = "Job Help";
             } else if (lowerTitle.includes("internal")) {
                 sessionType = "Internal Sessions";
-            } else {
+            } else if (!isCandidateSimulation) {
                 sessionType = "Misc"; // Default
+            }
+
+            // Look up candidate ID if it is a candidate interview simulation
+            let joined_candidate_ids = [];
+            if (isCandidateSimulation && candidateName) {
+                try {
+                    console.log(`[PRIMARY] Searching candidate ID for: ${candidateName}`);
+                    const candidates = await searchCandidates(candidateName);
+                    if (candidates && candidates.length > 0) {
+                        const candidateId = candidates[0].id;
+                        joined_candidate_ids.push(candidateId);
+                        console.log(`[PRIMARY] Found candidate ID ${candidateId} for candidate ${candidateName}`);
+                    } else {
+                        console.warn(`[PRIMARY] No candidate found matching name: ${candidateName}`);
+                    }
+                } catch (apiError) {
+                    console.error("[PRIMARY] Failed to search candidate via API:", apiError.message);
+                }
             }
 
             // Create session via API (matching original INSERT statement)
@@ -281,6 +312,7 @@ async function uploadVideo(filePath, auth) {
                 videoid: videoId,
                 lastmoddatetime: lastModDateTime,
                 subject_id: subjectId,
+                joined_candidate_ids: joined_candidate_ids,
             };
 
             try {

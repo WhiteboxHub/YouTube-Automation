@@ -418,6 +418,29 @@ async function createJobActivityLog(logData) {
     }
 }
 
+/**
+ * Search candidates from API by query
+ * @param {string} search - Search query for candidate
+ * @returns {Promise<Array>} Array of candidate objects
+ */
+async function searchCandidates(search = null) {
+    try {
+        console.log(`[API] Searching candidates with query: ${search}...`);
+        const client = await createAuthenticatedClient();
+        const params = search ? { search } : {};
+        const response = await client.get('/candidates', { params });
+        console.log(`[API] Found ${response.data.data?.length || 0} candidates`);
+        return response.data.data || [];
+    } catch (error) {
+        console.error('[API] Failed to search candidates:', error.message);
+        if (error.response) {
+            console.error('[API] Response status:', error.response.status);
+            console.error('[API] Response data:', JSON.stringify(error.response.data, null, 2));
+        }
+        throw error;
+    }
+}
+
 module.exports = {
     createRecording,
     updateRecording,
@@ -434,5 +457,6 @@ module.exports = {
     getBatchesForRecording,
     getRecordingsForBatch,
     deleteRecordingBatch,
-    createJobActivityLog
+    createJobActivityLog,
+    searchCandidates
 };
